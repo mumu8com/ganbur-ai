@@ -20,22 +20,22 @@ const SYSTEM_PROMPT = `أنت Ganbur AI، مساعد ذكي عربي احترا�
 function json(message,status=200){return NextResponse.json({message},{status,headers:{"Cache-Control":"no-store"}});}
 function normalizeText(value){if(typeof value!=="string")return null;const t=value.trim();return t&&t.length<=MAX_MESSAGE_LENGTH?t:null;}
 
-async function requestOpenRouter(aiMessages){
+async function requestOpenRouter(aiMessages,enrichedSystem){
  const key=process.env.OPENROUTER_API_KEY;if(!key)return null;
  const model=process.env.OPENROUTER_MODEL||"openrouter/free";const c=new AbortController();const timer=setTimeout(()=>c.abort(),TIMEOUT_MS);
  try{
-  const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${key}`,"HTTP-Referer":"https://ganbur-ai.vercel.app","X-Title":"Ganbur AI"},body:JSON.stringify({model,messages:[{role:"system",content:SYSTEM_PROMPT},...messages],temperature:.7}),signal:c.signal});
+  const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${key}`,"HTTP-Referer":"https://ganbur-ai.vercel.app","X-Title":"Ganbur AI"},body:JSON.stringify({model,messages:[{role:"system",content:systemPrompt},...messages],temperature:.7}),signal:c.signal});
   const raw=await r.text();let d={};try{d=JSON.parse(raw)}catch{}
   if(!r.ok){console.error("Ganbur OpenRouter request failed",{status:r.status,model,type:d?.error?.type||null,code:d?.error?.code||null});if(r.status===401)return{error:"AUTH"};if(r.status===429)return{error:"RATE_LIMIT"};if(r.status>=500)return{error:"UPSTREAM"};return{error:"REQUEST"}}
   const out=d?.choices?.[0]?.message?.content;return typeof out==="string"&&out.trim()?{message:out.trim()}:{error:"EMPTY"};
  }finally{clearTimeout(timer)}
 }
 
-async function requestOpenAI(aiMessages){
+async function requestOpenAI(aiMessages,enrichedSystem){
  const key=process.env.OPENAI_API_KEY;if(!key)return null;
  const model=process.env.OPENAI_MODEL||"gpt-5-mini";const c=new AbortController();const timer=setTimeout(()=>c.abort(),TIMEOUT_MS);
  try{
-  const r=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${key}`},body:JSON.stringify({model,instructions:SYSTEM_PROMPT,input:messages.map(m=>({role:m.role,content:[{type:m.role==="assistant"?"output_text":"input_text",text:m.content}]}))}),signal:c.signal});
+  const r=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${key}`},body:JSON.stringify({model,instructions:systemPrompt,input:messages.map(m=>({role:m.role,content:[{type:m.role==="assistant"?"output_text":"input_text",text:m.content}]}))}),signal:c.signal});
   const raw=await r.text();let d={};try{d=JSON.parse(raw)}catch{}
   if(!r.ok){console.error("Ganbur OpenAI request failed",{status:r.status,model,type:d?.error?.type||null,code:d?.error?.code||null});if(r.status===401)return{error:"AUTH"};if(r.status===429)return{error:"RATE_LIMIT"};if(r.status>=500)return{error:"UPSTREAM"};return{error:"REQUEST"}}
   const out=d?.output_text||d?.output?.flatMap(x=>x.content||[]).find(x=>x.type==="output_text"&&x.text)?.text;return typeof out==="string"&&out.trim()?{message:out.trim()}:{error:"EMPTY"};
