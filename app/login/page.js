@@ -6,7 +6,6 @@ import {createClient} from "../../lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,6 +19,7 @@ export default function LoginPage() {
     setMessage("");
     try {
       if (mode === "signup") {
+        const supabase = createClient();
         const {data, error} = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -29,6 +29,7 @@ export default function LoginPage() {
         if (data.session) router.replace("/");
         else setMessage("تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيد الحساب.");
       } else {
+        const supabase = createClient();
         const {error} = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password
