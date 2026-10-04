@@ -20,7 +20,7 @@ const SYSTEM_PROMPT = `أنت Ganbur AI، مساعد ذكي عربي احترا�
 function json(message,status=200){return NextResponse.json({message},{status,headers:{"Cache-Control":"no-store"}});}
 function normalizeText(value){if(typeof value!=="string")return null;const t=value.trim();return t&&t.length<=MAX_MESSAGE_LENGTH?t:null;}
 
-async function requestOpenRouter(messages){
+async function requestOpenRouter(aiMessages){
  const key=process.env.OPENROUTER_API_KEY;if(!key)return null;
  const model=process.env.OPENROUTER_MODEL||"openrouter/free";const c=new AbortController();const timer=setTimeout(()=>c.abort(),TIMEOUT_MS);
  try{
@@ -31,7 +31,7 @@ async function requestOpenRouter(messages){
  }finally{clearTimeout(timer)}
 }
 
-async function requestOpenAI(messages){
+async function requestOpenAI(aiMessages){
  const key=process.env.OPENAI_API_KEY;if(!key)return null;
  const model=process.env.OPENAI_MODEL||"gpt-5-mini";const c=new AbortController();const timer=setTimeout(()=>c.abort(),TIMEOUT_MS);
  try{
@@ -62,7 +62,12 @@ export async function POST(req){
   await supabase.from("conversations").update({updated_at:new Date().toISOString()}).eq("id",conversationId).eq("user_id",userId);
   const {data:history,error:he}=await supabase.from("messages").select("role,content").eq("conversation_id",conversationId).eq("user_id",userId).order("created_at",{ascending:false}).limit(MAX_MESSAGES);
   if(he)return json("تعذر قراءة سياق المحادثة.",500);
-  const messages=(history||[]).reverse();let result=null;
+  const messages=(history||[]).reverse();
+  const {data:memories}=await supabase.from("memories").select("memory_key,memory_value").eq("user_id",userId).order("updated_at",{ascending:false}).limit(20);
+  const memoryText=(memories||[]).map(m=>`- ${m.memory_key}: ${m.memory_value}`).join("\n");
+  const enrichedSystem=memoryText?`${SYSTEM_PROMPT}\n\nذاكرة المستخدم التي اختار حفظها بنفسه:\n${memoryText}`:SYSTEM_PROMPT;
+  const aiMessages=messages;
+  let result=null;
   if(process.env.OPENROUTER_API_KEY)result=await requestOpenRouter(messages);
   if(!result?.message&&process.env.OPENAI_API_KEY)result=await requestOpenAI(messages);
   if(!result?.message){if(result?.error==="RATE_LIMIT")return json("وصلنا إلى حد الاستخدام المؤقت. حاول بعد قليل.",503);if(result?.error==="AUTH")return json("تعذر التحقق من إعداد خدمة الذكاء الاصطناعي.",502);return json("تعذر الحصول على رد من مزود الذكاء الاصطناعي حاليًا.",502);}
