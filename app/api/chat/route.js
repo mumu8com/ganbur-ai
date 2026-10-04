@@ -20,7 +20,7 @@ const SYSTEM_PROMPT = `أنت Ganbur AI، مساعد ذكي عربي احترا�
 function json(message,status=200){return NextResponse.json({message},{status,headers:{"Cache-Control":"no-store"}});}
 function normalizeText(value){if(typeof value!=="string")return null;const t=value.trim();return t&&t.length<=MAX_MESSAGE_LENGTH?t:null;}
 
-async function requestOpenRouter(aiMessages,enrichedSystem){
+async function requestOpenRouter(messages,systemPrompt=SYSTEM_PROMPT){
  const key=process.env.OPENROUTER_API_KEY;if(!key)return null;
  const model=process.env.OPENROUTER_MODEL||"openrouter/free";const c=new AbortController();const timer=setTimeout(()=>c.abort(),TIMEOUT_MS);
  try{
@@ -31,7 +31,7 @@ async function requestOpenRouter(aiMessages,enrichedSystem){
  }finally{clearTimeout(timer)}
 }
 
-async function requestOpenAI(aiMessages,enrichedSystem){
+async function requestOpenAI(messages,systemPrompt=SYSTEM_PROMPT){
  const key=process.env.OPENAI_API_KEY;if(!key)return null;
  const model=process.env.OPENAI_MODEL||"gpt-5-mini";const c=new AbortController();const timer=setTimeout(()=>c.abort(),TIMEOUT_MS);
  try{
@@ -68,8 +68,8 @@ export async function POST(req){
   const enrichedSystem=memoryText?`${SYSTEM_PROMPT}\n\nذاكرة المستخدم التي اختار حفظها بنفسه:\n${memoryText}`:SYSTEM_PROMPT;
   const aiMessages=messages;
   let result=null;
-  if(process.env.OPENROUTER_API_KEY)result=await requestOpenRouter(messages);
-  if(!result?.message&&process.env.OPENAI_API_KEY)result=await requestOpenAI(messages);
+  if(process.env.OPENROUTER_API_KEY)result=await requestOpenRouter(aiMessages,enrichedSystem);
+  if(!result?.message&&process.env.OPENAI_API_KEY)result=await requestOpenAI(aiMessages,enrichedSystem);
   if(!result?.message){if(result?.error==="RATE_LIMIT")return json("وصلنا إلى حد الاستخدام المؤقت. حاول بعد قليل.",503);if(result?.error==="AUTH")return json("تعذر التحقق من إعداد خدمة الذكاء الاصطناعي.",502);return json("تعذر الحصول على رد من مزود الذكاء الاصطناعي حاليًا.",502);}
   const {error:ae}=await supabase.from("messages").insert({conversation_id:conversationId,user_id:userId,role:"assistant",content:result.message});if(ae)return json("تم توليد الرد لكن تعذر حفظه.",500);
   await supabase.from("conversations").update({updated_at:new Date().toISOString()}).eq("id",conversationId).eq("user_id",userId);
