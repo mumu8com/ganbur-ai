@@ -47,7 +47,6 @@ export async function POST(req){
       console.error("Ganbur OpenAI request failed",{
         status:response.status,
         model,
-        error:data?.error?.message||"Unknown provider error",
         type:data?.error?.type||null,
         code:data?.error?.code||null
       });
@@ -63,10 +62,7 @@ export async function POST(req){
 
     return NextResponse.json({message:output});
   }catch(error){
-    console.error("Ganbur chat server error",{
-      name:error?.name||"Error",
-      message:error?.message||"Unknown server error"
-    });
+    console.error("Ganbur chat server error",{name:error?.name||"Error"});
     return NextResponse.json({message:"حدث خطأ في الخادم."},{status:500});
   }
 }
