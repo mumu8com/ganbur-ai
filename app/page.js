@@ -16,7 +16,8 @@ export default function Home(){
  const [memory,setMemory]=useState([]),[showMemory,setShowMemory]=useState(false),[memoryBusy,setMemoryBusy]=useState(false);
  const [files,setFiles]=useState([]),[fileBusy,setFileBusy]=useState(false),[fileMessage,setFileMessage]=useState("");
  const [pendingFileIds,setPendingFileIds]=useState([]);
- const fileInputRef=useRef(null);
+ const fileInputRef=useRef(null),toolsMenuRef=useRef(null);
+ const [showTools,setShowTools]=useState(false);
  const activeChat=useMemo(()=>chats.find(c=>c.id===activeId)||null,[chats,activeId]);
  const messages=activeChat?.messages||[];
 
@@ -32,6 +33,8 @@ export default function Home(){
   fetch("/api/health",{cache:"no-store"}).then(r=>r.json()).then(d=>setService(d?.aiConfigured?(d.provider||"online"):"offline")).catch(()=>setService("offline"));
   return()=>{alive=false;abortRef.current?.abort()};
  },[]);
+
+ useEffect(()=>{if(!showTools)return;function close(e){if(!toolsMenuRef.current?.contains(e.target))setShowTools(false)};document.addEventListener("mousedown",close);return()=>document.removeEventListener("mousedown",close)},[showTools]);
 
  useEffect(()=>{if(!search.trim()||search.trim().length<2){setSearchResults([]);return;}const timer=setTimeout(async()=>{try{const r=await fetch("/api/search?q="+encodeURIComponent(search.trim()),{cache:"no-store"});const d=await r.json();setSearchResults(d.results||[]);}catch{setSearchResults([]);}},250);return()=>clearTimeout(timer)},[search]);
 
@@ -110,11 +113,11 @@ export default function Home(){
    <div className="account-box"><div className="muted">{user.email}</div><button className="link-button" onClick={logout}>تسجيل الخروج</button></div>
   </aside>
   <main className="main">
-   <header className="topbar"><strong>{activeChat?.title||"محادثة جديدة"}</strong><div className="toolbar"><button className="toolbar-button" onClick={newChat} title="محادثة جديدة">＋</button><button className="toolbar-button" onClick={()=>fileInputRef.current?.click()} title="رفع ملف">📎</button><button className="toolbar-button" onClick={()=>{setShowMemory(v=>!v);if(!showMemory)loadMemory()}} title="ذاكرة Ganbur">🧠</button><button className="toolbar-button" onClick={logout} title="تسجيل الخروج">⇥</button><div className="status"><span className={"dot "+(service==="offline"?"offline":"")}/>{service==="offline"?"غير متاح":"متصل"}</div></div></header>
+   <header className="topbar"><strong>{activeChat?.title||"محادثة جديدة"}</strong><div className="status"><span className={"dot "+(service==="offline"?"offline":"")}/>{service==="offline"?"غير متاح":"متصل"}</div></header>
    <div className="content"><section className="chat">
     {!messages.length&&<div className="welcome"><div className="welcome-icon">✦</div><h1>مرحباً بك في Ganbur AI</h1><p>ذاكرة اختيارية، محادثات سحابية، وبحث داخل تاريخك.</p><div className="suggestions">{["اكتب لي خطة مشروع احترافية","اشرح لي الذكاء الاصطناعي ببساطة","ساعدني في كتابة كود آمن"].map(s=><button key={s} onClick={()=>send(s)}>{s}</button>)}</div></div>}
     <div className="messages" aria-live="polite">{messages.map((m,i)=><div key={m.id||i} className={"msg-wrap "+(m.role==="user"?"user-wrap":"assistant-wrap")}><div className={"msg "+(m.role==="user"?"user":"assistant")+(m.error?" error":"")}>{m.content}</div>{m.role==="assistant"&&<div className="msg-actions"><button onClick={()=>copyMessage(m.content)}>نسخ</button></div>}</div>)}{loading&&<div className="msg assistant thinking">أفكر…</div>}</div>
-    <div className="composer"><button className="attach" title="رفع ملف" onClick={()=>fileInputRef.current?.click()} disabled={loading||fileBusy}>📎</button><textarea value={input} maxLength={8000} aria-label="رسالتك" onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder="اكتب رسالتك هنا…" disabled={loading}/><button className="send" onClick={loading?stop:()=>send()} disabled={!loading&&!input.trim()}>{loading?"إيقاف":"إرسال"}</button></div>
+    <div className="composer" ref={toolsMenuRef}><div className="composer-tools"><button className="attach tools-trigger" title="الأدوات" aria-label="فتح قائمة الأدوات" aria-expanded={showTools} onClick={()=>setShowTools(v=>!v)} disabled={loading||fileBusy}>＋</button>{showTools&&<div className="tools-menu" role="menu"><button className="tool-item" onClick={()=>{setShowTools(false);fileInputRef.current?.click()}} role="menuitem"><span>📎</span><span><b>إرفاق ملف</b><small>PDF و Word و Excel والصور</small></span></button><button className="tool-item" onClick={()=>{setShowTools(false);setShowMemory(true);loadMemory()}} role="menuitem"><span>🧠</span><span><b>الذاكرة</b><small>إدارة ما يتذكره Ganbur عنك</small></span></button></div>}</div><textarea value={input} maxLength={8000} aria-label="رسالتك" onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder="اكتب رسالتك هنا…" disabled={loading}/><button className="send" onClick={loading?stop:()=>send()} disabled={!loading&&!input.trim()}>{loading?"إيقاف":"إرسال"}</button></div>
     <div className="footer">قد تخطئ إجابات الذكاء الاصطناعي؛ تحقق من المعلومات المهمة.</div>
    </section></div>
   </main>
