@@ -81,11 +81,11 @@ export default function Home() {
     );
   }
 
-  async function send(textOverride) {
+  async function send(textOverride, baseMessages = messages) {
     const text = (textOverride ?? input).trim();
     if (!text || loading || text.length > 8000 || !activeChat) return;
 
-    const next = [...messages, {role: "user", content: text}];
+    const next = [...baseMessages, {role: "user", content: text}];
     updateActive(next, activeChat.title === "محادثة جديدة" ? titleFrom(text) : activeChat.title);
     setInput("");
     setLoading(true);
@@ -130,7 +130,7 @@ export default function Home() {
       ? messages.slice(0, -1)
       : messages;
     updateActive(beforeLastAssistant, null);
-    await send(lastUser.content);
+    await send(lastUser.content, beforeLastAssistant);
   }
 
   return <div className="shell">
