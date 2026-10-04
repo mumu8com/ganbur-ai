@@ -40,7 +40,7 @@ export default function Home(){
 
  async function loadMessages(id){const supabase=supabaseRef.current;if(!supabase)return;const {data,error}=await supabase.from("messages").select("id,role,content,created_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(100);if(!error)setChats(current=>current.map(c=>c.id===id?{...c,messages:data||[]}:c));}
  async function loadFiles(){try{const r=await fetch("/api/files",{cache:"no-store"});const d=await r.json();if(r.ok)setFiles(d.files||[])}catch{}}
- function addLink(){\n  const value=window.prompt("أدخل الرابط:");\n  if(!value?.trim())return;\n  try{const url=new URL(value.trim());if(!/^https?:$/.test(url.protocol))throw new Error();setInput(current=>current?(current+" "+url.toString()):url.toString());}\n  catch{setFileMessage("الرابط غير صالح. استخدم رابطًا يبدأ بـ https:// أو http://");}\n }\n async function uploadFile(file){
+ function addLink(){const value=window.prompt("أدخل الرابط:");if(!value?.trim())return;try{const url=new URL(value.trim());if(!/^https?:$/.test(url.protocol))throw new Error();setInput(current=>current?(current+" "+url.toString()):url.toString());}catch{setFileMessage("الرابط غير صالح. استخدم رابطًا يبدأ بـ https:// أو http://");}} async function uploadFile(file){
   if(!file||!user)return;
   setFileMessage("");
   const allowed=["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/msword","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","application/vnd.ms-excel","text/plain","image/png","image/jpeg","image/webp"];
