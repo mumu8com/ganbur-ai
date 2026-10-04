@@ -15,6 +15,7 @@ export default function Home(){
  const [loading,setLoading]=useState(false),[service,setService]=useState("checking"),[search,setSearch]=useState(""),[searchResults,setSearchResults]=useState([]);
  const [memory,setMemory]=useState([]),[showMemory,setShowMemory]=useState(false),[memoryBusy,setMemoryBusy]=useState(false);
  const [files,setFiles]=useState([]),[fileBusy,setFileBusy]=useState(false),[fileMessage,setFileMessage]=useState("");
+ const [pendingFileIds,setPendingFileIds]=useState([]);
  const fileInputRef=useRef(null);
  const activeChat=useMemo(()=>chats.find(c=>c.id===activeId)||null,[chats,activeId]);
  const messages=activeChat?.messages||[];
@@ -51,7 +52,16 @@ export default function Home(){
    const r=await fetch("/api/files",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:file.name,storagePath:path,mimeType:file.type,sizeBytes:file.size})});
    const d=await r.json().catch(()=>({}));
    if(!r.ok){await supabase.storage.from("ganbur-files").remove([path]);throw new Error(d?.message||"تعذر تسجيل الملف.");}
-   setFiles(current=>[d.file,...current].slice(0,50));setFileMessage("تم رفع الملف بأمان.");
+   setFiles(current=>[d.file,...current].slice(0,50));
+   if(activeChat&&!activeChat.local){
+    const link=await fetch("/api/files/link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fileId:d.file.id,conversationId:activeChat.id})});
+    if(!link.ok)throw new Error("تم رفع الملف لكن تعذر ربطه بالمحادثة.");
+    setFiles(current=>current.map(x=>x.id===d.file.id?{...x,conversation_id:activeChat.id}:x));
+    setFileMessage("تم رفع الملف وربطه بالمحادثة الحالية.");
+   }else{
+    setPendingFileIds(ids=>[...ids,d.file.id]);
+    setFileMessage("تم رفع الملف. سيُربط بالمحادثة عند إرسال أول رسالة.");
+   }
   }catch(e){setFileMessage(e.message||"تعذر رفع الملف.")}finally{setFileBusy(false);if(fileInputRef.current)fileInputRef.current.value=""}
  }
  async function analyzeFile(file){
@@ -76,7 +86,7 @@ export default function Home(){
   const current=activeChat,tempMessage={id:fallbackId(),role:"user",content:text,created_at:new Date().toISOString()};
   setChats(list=>list.map(c=>c.id===activeId?{...c,messages:[...c.messages,tempMessage],title:c.title==="محادثة جديدة"?titleFrom(text):c.title}:c));
   setInput("");setLoading(true);const controller=new AbortController();abortRef.current=controller;
-  try{const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversationId:current?.local?null:current?.id||null,message:text}),signal:controller.signal});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data?.message||"تعذر إرسال الرسالة.");const realId=data.conversationId;const nextMessages=[...((current?.messages)||[]),tempMessage];setChats(list=>list.map(c=>c.id===activeId?{...c,id:realId,local:false,title:c.title==="محادثة جديدة"?titleFrom(text):c.title,messages:[...nextMessages,{id:fallbackId(),role:"assistant",content:data.message,created_at:new Date().toISOString()}],updated_at:new Date().toISOString()}:c));setActiveId(realId);}catch(error){if(error?.name!=="AbortError")setChats(list=>list.map(c=>c.id===activeId?{...c,messages:[...c.messages,{id:fallbackId(),role:"assistant",content:error.message||"تعذر الاتصال بالخادم.",error:true,created_at:new Date().toISOString()}]}:c));}finally{if(abortRef.current===controller)abortRef.current=null;setLoading(false);}
+  try{const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversationId:current?.local?null:current?.id||null,message:text,fileIds:pendingFileIds}),signal:controller.signal});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data?.message||"تعذر إرسال الرسالة.");const realId=data.conversationId;const nextMessages=[...((current?.messages)||[]),tempMessage];setChats(list=>list.map(c=>c.id===activeId?{...c,id:realId,local:false,title:c.title==="محادثة جديدة"?titleFrom(text):c.title,messages:[...nextMessages,{id:fallbackId(),role:"assistant",content:data.message,created_at:new Date().toISOString()}],updated_at:new Date().toISOString()}:c));setActiveId(realId);setPendingFileIds([]);}catch(error){if(error?.name!=="AbortError")setChats(list=>list.map(c=>c.id===activeId?{...c,messages:[...c.messages,{id:fallbackId(),role:"assistant",content:error.message||"تعذر الاتصال بالخادم.",error:true,created_at:new Date().toISOString()}]}:c));}finally{if(abortRef.current===controller)abortRef.current=null;setLoading(false);}
  }
  function stop(){abortRef.current?.abort();setLoading(false)}
  async function copyMessage(content){try{await navigator.clipboard.writeText(content)}catch{}}
@@ -96,7 +106,7 @@ export default function Home(){
    <div className="history-title">المحادثات السحابية</div>
    <div className="history">{chats.map(chat=><div key={chat.id} className={"history-row "+(chat.id===activeId?"active":"")}><button className="history-item" onClick={()=>selectChat(chat.id)}>{chat.title}</button>{!chat.local&&<><button className="tiny-action" title="إعادة تسمية" onClick={()=>renameChat(chat)}>✎</button><button className="tiny-action danger" title="حذف" onClick={()=>deleteChat(chat)}>×</button></>}</div>)}</div>
    <div className="memory-tools"><button className="tool-button" onClick={()=>{setShowMemory(v=>!v);if(!showMemory)loadMemory()}}>🧠 ذاكرة Ganbur</button>{showMemory&&<div className="memory-panel"><div className="memory-head"><strong>ذاكرتك</strong><button onClick={addMemory}>＋</button></div>{memoryBusy?<small>جارٍ التحميل…</small>:memory.length?<div className="memory-list">{memory.map(m=><div key={m.id}><span><b>{m.memory_key}</b><br/>{m.memory_value}</span><button onClick={()=>deleteMemory(m.id)}>×</button></div>)}</div>:<small>لا توجد ذاكرة محفوظة. أضف ما تريد أن يتذكره.</small>}</div>}</div>
-   <div className="files-tools"><button className="tool-button" onClick={()=>fileInputRef.current?.click()} disabled={fileBusy}>📎 {fileBusy?"جارٍ التنفيذ…":"رفع ملف"}</button><input ref={fileInputRef} type="file" hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.webp" onChange={e=>uploadFile(e.target.files?.[0])}/>{fileMessage&&<small className="file-message">{fileMessage}</small>}{files.length>0&&<div className="file-list">{files.slice(0,8).map(f=><div key={f.id} className="file-row"><span title={f.name}>{f.name}</span><button onClick={()=>analyzeFile(f)} disabled={fileBusy}>{f.status==="analyzed"?"إعادة":"تحليل"}</button><button onClick={()=>window.open("/api/files/download?id="+encodeURIComponent(f.id),"_blank")}>تنزيل</button><button onClick={()=>deleteFile(f)} disabled={fileBusy}>×</button></div>)}</div>}</div>
+   <div className="files-tools"><button className="tool-button" onClick={()=>fileInputRef.current?.click()} disabled={fileBusy}>📎 {fileBusy?"جارٍ التنفيذ…":"رفع ملف"}</button><input ref={fileInputRef} type="file" hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.webp" onChange={e=>uploadFile(e.target.files?.[0])}/>{fileMessage&&<small className="file-message">{fileMessage}</small>}{files.length>0&&<div className="file-list">{files.slice(0,8).map(f=><div key={f.id} className="file-row"><span title={f.name}>{f.name}{f.conversation_id===activeId&&<small style={{display:"block"}}>مرتبط بالمحادثة الحالية</small>}</span><button onClick={()=>analyzeFile(f)} disabled={fileBusy}>{f.status==="analyzed"?"إعادة":"تحليل"}</button><button onClick={()=>window.open("/api/files/download?id="+encodeURIComponent(f.id),"_blank")}>تنزيل</button><button onClick={()=>deleteFile(f)} disabled={fileBusy}>×</button></div>)}</div>}</div>
    <div className="account-box"><div className="muted">{user.email}</div><button className="link-button" onClick={logout}>تسجيل الخروج</button></div>
   </aside>
   <main className="main">
