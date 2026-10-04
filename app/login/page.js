@@ -59,7 +59,7 @@ export default function LoginPage() {
           <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="كلمة المرور" minLength={8} required autoComplete={mode === "login" ? "current-password" : "new-password"} />
           <button disabled={busy}>{busy ? "جارٍ التنفيذ…" : mode === "login" ? "دخول" : "إنشاء الحساب"}</button>
         </form>
-        {message && <div className="auth-message">{message}</div>}
+        {message && <div className="auth-message">{message}</div>} {mode==="login" && <button className="link-button" onClick={forgot} disabled={busy}>نسيت كلمة المرور؟</button>}
         <button className="link-button" onClick={() => {setMode(mode === "login" ? "signup" : "login"); setMessage("");}}>
           {mode === "login" ? "ليس لديك حساب؟ إنشاء حساب" : "لديك حساب؟ تسجيل الدخول"}
         </button>
