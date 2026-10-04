@@ -24,7 +24,7 @@ export async function GET(){
  const {data:claimsData}=await supabase.auth.getClaims();
  const userId=claimsData?.claims?.sub;
  if(!userId)return json({message:"يجب تسجيل الدخول أولًا."},401);
- const {data,error}=await supabase.from("files").select("id,name,mime_type,size_bytes,status,created_at,updated_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(50);
+ const {data,error}=await supabase.from("files").select("id,name,mime_type,size_bytes,status,conversation_id,created_at,updated_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(50);
  if(error)return json({message:"تعذر قراءة الملفات."},500);
  return json({files:data||[]});
 }
@@ -45,7 +45,7 @@ export async function POST(req){
  const ext=(name.split(".").pop()||"").toLowerCase();
  const allowedExt=["pdf","docx","doc","xlsx","xls","txt","png","jpg","jpeg","webp"];
  if(!allowedExt.includes(ext))return json({message:"امتداد الملف غير مسموح."},400);
- const {data,error}=await supabase.from("files").insert({user_id:userId,name,storage_path:storagePath,mime_type:mimeType,size_bytes:sizeBytes}).select("id,name,mime_type,size_bytes,status,created_at").single();
+ const {data,error}=await supabase.from("files").insert({user_id:userId,name,storage_path:storagePath,mime_type:mimeType,size_bytes:sizeBytes}).select("id,name,mime_type,size_bytes,status,conversation_id,created_at").single();
  if(error)return json({message:"تعذر تسجيل الملف."},500);
  return json({file:data});
 }
