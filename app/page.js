@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect,useMemo,useRef,useState} from "react";
+import {useEffect,useRef,useState} from "react";
 import {useRouter} from "next/navigation";
 import {createClient} from "../lib/supabase/client";
 
@@ -11,7 +11,7 @@ function titleFrom(text){const clean=text.replace(/\s+/g," ").trim();return clea
 function emptyChat(){return{id:fallbackId(),title:"محادثة جديدة",messages:[],updated_at:new Date().toISOString(),local:true};}
 
 export default function Home(){
- const router=useRouter();const supabase=useMemo(()=>createClient(),[]);
+ const router=useRouter();const supabaseRef=useRef(null);
  const [user,setUser]=useState(null);const [chats,setChats]=useState([]);const [activeId,setActiveId]=useState(null);
  const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [service,setService]=useState("checking");const abortRef=useRef(null);
  const activeChat=useMemo(()=>chats.find(c=>c.id===activeId)||null,[chats,activeId]);const messages=activeChat?.messages||[];
@@ -19,6 +19,7 @@ export default function Home(){
  useEffect(()=>{
   let alive=true;
   (async()=>{
+   const supabase=createClient();supabaseRef.current=supabase;
    const {data}=await supabase.auth.getUser();if(!alive)return;
    if(!data.user){router.replace("/login");return}setUser(data.user);
    const {data:rows,error}=await supabase.from("conversations").select("id,title,updated_at").order("updated_at",{ascending:false}).limit(MAX_SAVED_CHATS);
@@ -29,6 +30,7 @@ export default function Home(){
  },[]);
 
  async function loadMessages(id){
+  const supabase=supabaseRef.current;if(!supabase)return;
   const {data,error}=await supabase.from("messages").select("id,role,content,created_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(100);
   if(!error)setChats(current=>current.map(c=>c.id===id?{...c,messages:data||[]}:c));
  }
@@ -53,7 +55,7 @@ export default function Home(){
  }
  function stop(){abortRef.current?.abort();setLoading(false);}
  async function copyMessage(content){try{await navigator.clipboard.writeText(content)}catch{}}
- async function logout(){abortRef.current?.abort();await supabase.auth.signOut();router.replace("/login");router.refresh();}
+ async function logout(){abortRef.current?.abort();const supabase=supabaseRef.current;if(supabase)await supabase.auth.signOut();router.replace("/login");router.refresh();}
 
  if(!user)return <main style={{minHeight:"100vh",display:"grid",placeItems:"center"}}>جارٍ تحميل Ganbur AI…</main>;
 
